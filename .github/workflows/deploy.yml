@@ -1,0 +1,118 @@
+name: Build and Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: empresa-transportista-efs
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest .
+
+      - name: Push Docker Image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Set up AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Configure SSH key file
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" | sed 's/\r$//' > ~/.ssh/ec2_deploy_key
+          chmod 600 ~/.ssh/ec2_deploy_key
+          ssh-keygen -y -f ~/.ssh/ec2_deploy_key > /dev/null
+          FINGERPRINT=$(ssh-keygen -lf ~/.ssh/ec2_deploy_key | awk '{print $2}')
+          echo "Fingerprint detectado: $FINGERPRINT"
+          echo "Fingerprint correcto (dsy2204-1.pem): SHA256:LMpmI/thDtRMsbFMMYywOeJQuOh1Om2Tm9jZditomF4"
+          if [ "$FINGERPRINT" != "SHA256:LMpmI/thDtRMsbFMMYywOeJQuOh1Om2Tm9jZditomF4" ]; then
+            echo "ERROR: EC2_SSH_KEY en GitHub NO es dsy2204-1.pem (probablemente pegaste labsuser.pem)"
+            echo "Solucion: borra EC2_SSH_KEY en GitHub Secrets y pega el contenido de dsy2204-1.pem"
+            exit 1
+          fi
+          echo "Clave dsy2204-1.pem validada correctamente"
+
+      - name: Test SSH connection to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          USER_SERVER: ${{ secrets.USER_SERVER }}
+        run: |
+          EC2_HOST="$(echo "$EC2_HOST" | tr -d '[:space:]')"
+          USER_SERVER="$(echo "$USER_SERVER" | tr -d '[:space:]')"
+          echo "Conectando como: ${USER_SERVER}@${EC2_HOST}"
+          ssh -i ~/.ssh/ec2_deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o BatchMode=yes \
+            "${USER_SERVER}@${EC2_HOST}" "echo SSH_OK && whoami && hostname"
+
+      - name: Deploy to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          USER_SERVER: ${{ secrets.USER_SERVER }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          EFS_MOUNT_PATH: ${{ secrets.EFS_MOUNT_PATH }}
+          EFS_PATH: ${{ secrets.EFS_PATH }}
+        run: |
+          EC2_HOST="$(echo "$EC2_HOST" | tr -d '[:space:]')"
+          USER_SERVER="$(echo "$USER_SERVER" | tr -d '[:space:]')"
+          AWS_S3_BUCKET="$(echo "$AWS_S3_BUCKET" | tr -d '[:space:]')"
+          EFS_MOUNT_PATH="$(echo "${EFS_MOUNT_PATH:-/home/ec2-user/efs}" | tr -d '[:space:]')"
+          EFS_PATH="$(echo "${EFS_PATH:-/app/efs}" | tr -d '[:space:]')"
+          SSH_BASE=(ssh -i ~/.ssh/ec2_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          TARGET="${USER_SERVER}@${EC2_HOST}"
+          echo "EFS montaje EC2: ${EFS_MOUNT_PATH} -> contenedor: ${EFS_PATH}"
+          "${SSH_BASE[@]}" "$TARGET" "sudo mkdir -p '${EFS_MOUNT_PATH}' && df -h | grep -E 'efs|${EFS_MOUNT_PATH}' || echo 'Verificar que EFS este montado en ${EFS_MOUNT_PATH}'"
+          "${SSH_BASE[@]}" "$TARGET" "echo '${DOCKERHUB_TOKEN}' | docker login -u '${DOCKERHUB_USERNAME}' --password-stdin"
+          "${SSH_BASE[@]}" "$TARGET" "docker pull '${DOCKERHUB_USERNAME}/${{ env.IMAGE_NAME }}:latest'"
+          "${SSH_BASE[@]}" "$TARGET" "docker stop ${{ env.IMAGE_NAME }} 2>/dev/null || true; docker rm ${{ env.IMAGE_NAME }} 2>/dev/null || true"
+          "${SSH_BASE[@]}" "$TARGET" "docker run -d --name ${{ env.IMAGE_NAME }} --restart unless-stopped -p 8080:8080 \
+            -v ${EFS_MOUNT_PATH}:${EFS_PATH} \
+            -e EFS_PATH='${EFS_PATH}' \
+            -e AWS_ACCESS_KEY_ID='${AWS_ACCESS_KEY_ID}' \
+            -e AWS_SECRET_ACCESS_KEY='${AWS_SECRET_ACCESS_KEY}' \
+            -e AWS_SESSION_TOKEN='${AWS_SESSION_TOKEN}' \
+            -e AWS_S3_BUCKET='${AWS_S3_BUCKET}' \
+            -e AWS_REGION='us-east-1' \
+            '${DOCKERHUB_USERNAME}/${{ env.IMAGE_NAME }}:latest'"
+          "${SSH_BASE[@]}" "$TARGET" "docker ps"
+          "${SSH_BASE[@]}" "$TARGET" "docker exec ${{ env.IMAGE_NAME }} ls -la ${EFS_PATH} || true"

@@ -1,0 +1,440 @@
+{
+  "info": {
+    "_postman_id": "semana3-transportista-2026",
+    "name": "Semana 3 — Empresa Transportista EFS + S3",
+    "description": "# Flujo en 2 carpetas secuenciales\n\n## Carpeta 1 — Negocio (video principal)\nCrear pedidos en memoria → el sistema genera el PDF → guarda en EFS + S3.\n\n## Carpeta 2 — Cloud (como el profesor)\nDemostrar ordenamiento en bucket, consulta con filtros, descarga, PUT y DELETE.\n\n**Variables:** `ec2_host`, `bucket`, `pedido_id_1`, `pedido_id_2`, `fecha`, `transportista`, `nombreGuia`, `fecha2`, `transportista2`, `nombreGuia2`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Negocio — Pedidos y Guías",
+      "item": [
+        {
+          "name": "1. POST — Crear pedido 1 (TransportesSur)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('pedido_id_1', body.id);",
+                  "pm.collectionVariables.set('fecha', body.fecha);",
+                  "pm.collectionVariables.set('transportista', body.transportista);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Maria Lopez\",\n  \"direccion\": \"Av. Libertad 123, Santiago\",\n  \"descripcion\": \"Caja mediana fragil\",\n  \"transportista\": \"TransportesSur\",\n  \"fecha\": \"20250604\"\n}"
+            },
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/pedidos",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "pedidos"]
+            },
+            "description": "Crea PED-001. Key futura: 20250604/TransportesSur/guia-PED-001.pdf"
+          },
+          "response": []
+        },
+        {
+          "name": "2. POST — Generar guía pedido 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('nombreGuia', body.nombreGuia.replace('.pdf', ''));",
+                  "pm.collectionVariables.set('fecha', body.fecha);",
+                  "pm.collectionVariables.set('transportista', body.transportista);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/pedidos/{{pedido_id_1}}/generar-guia",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "pedidos", "{{pedido_id_1}}", "generar-guia"]
+            },
+            "description": "El sistema genera el PDF y lo guarda en EFS y S3. Sin subir archivo manual."
+          },
+          "response": []
+        },
+        {
+          "name": "3. POST — Crear pedido 2 (TransportesNorte)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('pedido_id_2', body.id);",
+                  "pm.collectionVariables.set('fecha2', body.fecha);",
+                  "pm.collectionVariables.set('transportista2', body.transportista);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": \"Carlos Pino\",\n  \"direccion\": \"Calle Norte 456, Valparaiso\",\n  \"descripcion\": \"Documentos urgentes\",\n  \"transportista\": \"TransportesNorte\",\n  \"fecha\": \"20250605\"\n}"
+            },
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/pedidos",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "pedidos"]
+            },
+            "description": "Crea PED-002 en otra carpeta: 20250605/TransportesNorte/"
+          },
+          "response": []
+        },
+        {
+          "name": "4. POST — Generar guía pedido 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('nombreGuia2', body.nombreGuia.replace('.pdf', ''));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/pedidos/{{pedido_id_2}}/generar-guia",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "pedidos", "{{pedido_id_2}}", "generar-guia"]
+            },
+            "description": "Segunda guía en carpeta distinta: 20250605/TransportesNorte/guia-PED-002.pdf"
+          },
+          "response": []
+        },
+        {
+          "name": "5. GET — Listar pedidos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('hay 2 pedidos', () => pm.expect(pm.response.json().length).to.eql(2));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/pedidos",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "pedidos"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. GET — Obtener pedido 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('guia generada', () => pm.expect(pm.response.json().guiaGenerada).to.eql(true));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/api/pedidos/{{pedido_id_1}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["api", "pedidos", "{{pedido_id_1}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Cloud — Ordenamiento EFS + S3",
+      "item": [
+        {
+          "name": "1. GET — Listar todo el bucket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('al menos 2 objetos', () => pm.expect(pm.response.json().length).to.be.at.least(2));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/s3/{{bucket}}/objects",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["s3", "{{bucket}}", "objects"]
+            },
+            "description": "Inventario completo del bucket. Requiere variable `bucket=cdy2204-1` (tu bucket real). Si falla 404, revisa que Postman tenga el bucket correcto, no `tu-bucket-guias`."
+          },
+          "response": []
+        },
+        {
+          "name": "2. GET — Consultar guías TransportesSur",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('hay al menos 1 guia TransportesSur', () => pm.expect(pm.response.json().total).to.be.at.least(1));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/s3/{{bucket}}/consulta?fecha={{fecha}}&transportista={{transportista}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["s3", "{{bucket}}", "consulta"],
+              "query": [
+                {"key": "fecha", "value": "{{fecha}}"},
+                {"key": "transportista", "value": "{{transportista}}"}
+              ]
+            },
+            "description": "Solo guías de 20250604/TransportesSur/"
+          },
+          "response": []
+        },
+        {
+          "name": "3. GET — Consultar guías TransportesNorte",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('hay al menos 1 guia TransportesNorte', () => pm.expect(pm.response.json().total).to.be.at.least(1));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/s3/{{bucket}}/consulta?fecha={{fecha2}}&transportista={{transportista2}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["s3", "{{bucket}}", "consulta"],
+              "query": [
+                {"key": "fecha", "value": "{{fecha2}}"},
+                {"key": "transportista", "value": "{{transportista2}}"}
+              ]
+            },
+            "description": "Solo guías de 20250605/TransportesNorte/"
+          },
+          "response": []
+        },
+        {
+          "name": "4. GET — Descargar guía pedido 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/s3/{{bucket}}/object?fecha={{fecha}}&transportista={{transportista}}&nombreGuia={{nombreGuia}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["s3", "{{bucket}}", "object"],
+              "query": [
+                {"key": "fecha", "value": "{{fecha}}"},
+                {"key": "transportista", "value": "{{transportista}}"},
+                {"key": "nombreGuia", "value": "{{nombreGuia}}"}
+              ]
+            },
+            "description": "Descarga el PDF generado por el sistema. Guardar como archivo para el PUT si lo necesitas."
+          },
+          "response": []
+        },
+        {
+          "name": "5. POST — Subir PDF externo (ruta propia)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));"],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": [], "description": "Cualquier PDF desde tu computadora"},
+                {"key": "fecha", "value": "{{fecha}}", "type": "text"},
+                {"key": "transportista", "value": "{{transportista}}", "type": "text"},
+                {"key": "nombreGuia", "value": "{{nombreGuiaExterna}}", "type": "text"}
+              ]
+            },
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/s3/{{bucket}}/object",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["s3", "{{bucket}}", "object"]
+            },
+            "description": "Sube un PDF externo. IMPORTANTE: en Body → form-data → campo `file` debes seleccionar un PDF de tu PC (clic en Select Files). Sin archivo seleccionado falla con 500."
+          },
+          "response": []
+        },
+        {
+          "name": "6. PUT — Actualizar guía pedido 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('nombreGuia', pm.collectionVariables.get('nombreGuia') + '-actualizado');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": [], "description": "PDF descargado en paso 4 o cualquier PDF"},
+                {"key": "fecha", "value": "{{fecha}}", "type": "text"},
+                {"key": "transportista", "value": "{{transportista}}", "type": "text"},
+                {"key": "nombreGuia", "value": "{{nombreGuia}}", "type": "text"}
+              ]
+            },
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/s3/{{bucket}}/object",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["s3", "{{bucket}}", "object"]
+            },
+            "description": "Actualiza la guia del pedido 1. IMPORTANTE: en Body → form-data → campo `file` selecciona un PDF (el descargado en paso 4 o cualquier PDF). Renombra a guia-PED-001-actualizado y elimina la anterior en EFS y S3."
+          },
+          "response": []
+        },
+        {
+          "name": "7. DELETE — Eliminar guía pedido 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://{{ec2_host}}:8080/s3/{{bucket}}/object?fecha={{fecha2}}&transportista={{transportista2}}&nombreGuia={{nombreGuia2}}",
+              "protocol": "http",
+              "host": ["{{ec2_host}}"],
+              "port": "8080",
+              "path": ["s3", "{{bucket}}", "object"],
+              "query": [
+                {"key": "fecha", "value": "{{fecha2}}"},
+                {"key": "transportista", "value": "{{transportista2}}"},
+                {"key": "nombreGuia", "value": "{{nombreGuia2}}"}
+              ]
+            },
+            "description": "Elimina SOLO la guía del pedido 2 en EFS y S3: `20250605/TransportesNorte/guia-PED-002.pdf`. El pedido 1 (`20250604/TransportesSur/`) NO se borra — debe seguir con archivos. Verifica con:\n`find ~/efs/20250605 -type f` (debe quedar vacío)\n`find ~/efs/20250604 -type f` (debe seguir con guías del pedido 1)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {"key": "ec2_host", "value": "52.45.88.121", "description": "IP publica de tu EC2"},
+    {"key": "bucket", "value": "cdy2204-1", "description": "OBLIGATORIO: mismo nombre que tu bucket S3 real (AWS_S3_BUCKET en Docker)"},
+    {"key": "pedido_id_1", "value": "PED-001"},
+    {"key": "pedido_id_2", "value": "PED-002"},
+    {"key": "fecha", "value": "20250604"},
+    {"key": "transportista", "value": "TransportesSur"},
+    {"key": "nombreGuia", "value": "guia-PED-001"},
+    {"key": "fecha2", "value": "20250605"},
+    {"key": "transportista2", "value": "TransportesNorte"},
+    {"key": "nombreGuia2", "value": "guia-PED-002"},
+    {"key": "nombreGuiaExterna", "value": "documento-externo"}
+  ]
+}
