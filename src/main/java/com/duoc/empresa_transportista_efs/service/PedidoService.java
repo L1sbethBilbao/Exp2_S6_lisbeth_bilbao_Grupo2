@@ -64,6 +64,9 @@ public class PedidoService {
 		if (pedidos.remove(id) == null) {
 			throw new ResourceNotFoundException("No existe el pedido con id: " + id);
 		}
+		if (pedidos.isEmpty()) {
+			contador.set(0);
+		}
 	}
 
 	public void marcarGuiaGenerada(Pedido pedido, String s3Key, String nombreGuia) {
@@ -73,6 +76,9 @@ public class PedidoService {
 	}
 
 	private String generarId() {
+		if (pedidos.isEmpty()) {
+			contador.set(0);
+		}
 		return String.format("PED-%03d", contador.incrementAndGet());
 	}
 
