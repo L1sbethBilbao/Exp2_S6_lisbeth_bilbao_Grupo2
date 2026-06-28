@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "semana3-transportista-2026",
     "name": "Semana 3 — Empresa Transportista EFS + S3",
-    "description": "# Flujo en 2 carpetas secuenciales\n\n## Carpeta 1 — Negocio (video principal)\nCrear pedidos en memoria → el sistema genera el PDF → guarda en EFS + S3.\n\n## Carpeta 2 — Cloud (como el profesor)\nDemostrar ordenamiento en bucket, consulta con filtros, descarga, PUT y DELETE.\n\n**Variables:** `ec2_host`, `bucket`, `pedido_id_1`, `pedido_id_2`, `fecha`, `transportista`, `nombreGuia`, `fecha2`, `transportista2`, `nombreGuia2`",
+    "description": "# Flujo en 2 carpetas secuenciales\n\n## Carpeta 1 — Negocio (video principal)\nCrear pedidos en memoria → el sistema genera el PDF → guarda en EFS + S3.\n\n## Carpeta 2 — Cloud (como el profesor)\nDemostrar ordenamiento en bucket, consulta con filtros, descarga, PUT y DELETE.\n\n**Variables:** `api_gateway_url`, `ec2_host`, `bucket`, `pedido_id_1`, `pedido_id_2`, `fecha`, `transportista`, `nombreGuia`, `fecha2`, `transportista2`, `nombreGuia2`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -190,6 +190,31 @@
               "port": "8080",
               "path": ["api", "pedidos", "{{pedido_id_1}}"]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "7. DELETE — Eliminar pedido 2 (memoria microservicio)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{api_gateway_url}}/api/pedidos/{{pedido_id_2}}",
+              "host": ["{{api_gateway_url}}"],
+              "path": ["api", "pedidos", "{{pedido_id_2}}"]
+            },
+            "description": "Elimina el pedido de la memoria del microservicio (no borra PDF en S3/EFS — eso es carpeta 2 #7). Usar despues de DELETE guia en S3 si quieres que el pedido deje de aparecer al listar. Por defecto usa pedido_id_2; cambia a pedido_id_1 si necesitas borrar otro."
           },
           "response": []
         }
@@ -425,6 +450,7 @@
     }
   ],
   "variable": [
+    {"key": "api_gateway_url", "value": "https://c60n9nxi6c.execute-api.us-east-1.amazonaws.com/DEV", "description": "URL base API Gateway (Semana 6). Sin barra final."},
     {"key": "ec2_host", "value": "52.45.88.121", "description": "IP publica de tu EC2"},
     {"key": "bucket", "value": "cdy2204-1", "description": "OBLIGATORIO: mismo nombre que tu bucket S3 real (AWS_S3_BUCKET en Docker)"},
     {"key": "pedido_id_1", "value": "PED-001"},
