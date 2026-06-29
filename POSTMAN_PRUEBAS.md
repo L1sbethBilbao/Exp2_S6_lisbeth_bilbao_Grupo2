@@ -6,6 +6,7 @@ Todas las pruebas usan **Access Token** (no ID Token) en header `Authorization: 
 
 **Coleccion:** `postman/Pruebas-Semana6.postman_collection.json`  
 **Environment:** copiar `postman/Semana6.postman_environment.example.json` → `postman/Semana6.postman_environment.json` (local, en `.gitignore`) y completar secretos desde `claves_actividad_semana_6.txt`. Nombre en Postman: **Semana 6**  
+**Guía rápida de flujo:** [PRUEBAS_FLOW.md](PRUEBAS_FLOW.md)  
 **API Gateway OAS:** `docs/api-gateway-OAS-DEV.json` (JSON, recomendado) o `docs/api-gateway-OAS-DEV.yaml`  
 **Setup AWS (Import Merge):** `docs/AWS_GATEWAY_SETUP.md`
 
@@ -75,7 +76,7 @@ Audience Gateway: `b2c_audience` (client_id) **o** `b2c_audience_scope` (scope A
 | **0.0 B** diagnostico | `{{api_gateway_url}}/api/pedidos` | Confirmar JWT Authorizer AWS |
 | **0.0 A** diagnostico | `http://{{ec2_host}}:8080/api/pedidos` | Solo debug Spring directo |
 | **Carpeta 1** | `{{api_gateway_url}}/...` | Flujo completo evaluacion |
-| **0.2** Login LECTOR | `{{api_gateway_url}}/s3/.../object` | Despues de Carpeta 1 |
+| **0.2** Login LECTOR | `{{api_gateway_url}}/api/pedidos` | OAuth + JWT; **403** esperado (sin S3). PDF en **Carpeta 2** |
 | **Carpeta 4** | EC2 directo | No usar en evaluacion |
 
 **Importante:** OAuth obtiene el token de **Azure B2C**, no de EC2 ni Gateway. Sin **Use Token** en Authorization, ambos endpoints dan Unauthorized.
@@ -197,9 +198,80 @@ Tras cada cambio: **Manage Tokens** → borrar → **Get New Access Token**. El 
 3. **0.0 C** → validar iss, aud, rol y test **NO es ID Token**
 4. **0.0 B** → API Gateway → 200 (Authorizer OK)
 5. **0.0 A** → EC2 directo → 200 (Spring OK, opcional)
-6. **Carpeta 1** → flujo completo via Gateway
-7. **0.2** OAuth LECTOR → **Carpeta 2** → descarga 200, crear 403
-8. **Carpeta 3** → sin token → 401
+6. **Carpeta 1** → flujo completo via Gateway (usuario **lisbethbilbao1@gmail.com** / GESTOR)
+7. Manage Tokens → borrar tokens; ventana privada → **0.2** OAuth LECTOR → Tests `LECTOR_GUIAS` + **403**
+8. **Carpeta 2** → GET descarga PDF **200**, POST **403**, DELETE **403**
+9. **Carpeta 3** → sin token → **401**
+
+---
+
+## Carpeta 2 — validación LECTOR (checklist)
+
+**Pre-requisitos:** Carpeta 1 ejecutada (guía en S3) · roles asignados en Azure ([GUIA_AZURE.md](docs/GUIA_AZURE.md) §4.7) · **0.2** con token LECTOR.
+
+| # | Request | Status esperado | Significado |
+|---|---------|-----------------|-------------|
+| 1 | GET descargar guía | **200** | LECTOR puede descargar |
+| 2 | POST crear pedido | **403** | LECTOR no puede crear |
+| 3 | DELETE eliminar guía | **403** | LECTOR no puede eliminar |
+
+**Si POST/DELETE dan 200:** el token es de GESTOR (mismo usuario que 0.1). Repite **0.2** con `lisbeth.bilbao.merino@gmail.com` y revisa Tests en 0.2 (`extension_UserRole` = `LECTOR_GUIAS`).
+
+---
+
+## Diagnostico 404 LECTOR (guia no existe en S3)
+
+Si **Carpeta 2 → GET descargar guia** devuelve:
+
+```json
+{
+  "status": 404,
+  "error": "Object Not Found",
+  "message": "El objeto '20250604/TransportesSur/guia-PED-001.pdf' no existe en el bucket 'cdy2204-1'"
+}
+```
+
+**No es fallo de UserRole.** Spring ya acepto el token LECTOR. Falta el PDF en S3.
+
+| Codigo | Causa | Accion |
+|--------|-------|--------|
+| **401** / `Unauthorized` | Token invalido o Gateway | OAuth / Authorizer |
+| **403** | Rol incorrecto | Token GESTOR en Carpeta 2 POST/DELETE |
+| **404** Object Not Found | Archivo no esta en S3 | Ejecutar **Carpeta 1** pasos 1 y 2 antes de **Carpeta 2 GET** |
+
+### Por que 0.1 GESTOR puede dar 200 y Carpeta 2 GET da 404
+
+| Request | Endpoint | Necesita PDF en S3 |
+|---------|----------|-------------------|
+| **0.1** GESTOR | `GET /api/pedidos` | **No** |
+| **0.2** LECTOR | `GET /api/pedidos` vía Gateway → **403** | **No** |
+| **Carpeta 2 GET** | `GET /s3/.../object` | **Si** |
+
+### Orden minimo antes de Carpeta 2
+
+1. **0.1** → login `lisbethbilbao1@gmail.com` → Tests: `GESTOR_GUIAS`
+2. **Carpeta 1** → `1. POST Crear pedido 1` → **201**
+3. **Carpeta 1** → `2. POST Generar guia pedido 1` → **201** (setea `s3_key_pedido_1`, `fecha`, `transportista`, `nombreGuia`)
+4. (Opcional) **Carpeta 1** → `3. GET Consulta` o `4. GET Descargar guia` → **200**
+5. Ventana privada → **0.2** → login `lisbeth.bilbao.merino@gmail.com` → Tests: `LECTOR_GUIAS`
+6. **Carpeta 2 GET** → **200** PDF
+
+### Verificar guia en S3 (GESTOR, tras Carpeta 1)
+
+```
+GET {{api_gateway_url}}/s3/{{bucket}}/consulta?fecha=20250604&transportista=TransportesSur
+```
+
+Debe listar al menos 1 guia. Variable environment esperada: `s3_key_pedido_1` = `20250604/TransportesSur/guia-PED-001.pdf`.
+
+### Validacion UserRole en Tests (0.1 y 0.2)
+
+| Request | Usuario | Test automatico en pestaña **Tests** |
+|---------|---------|--------------------------------------|
+| **0.1** | `lisbethbilbao1@gmail.com` | `Access Token con extension_UserRole GESTOR` |
+| **0.2** | `lisbeth.bilbao.merino@gmail.com` | `Access Token LECTOR_GUIAS` |
+
+Si el test de rol pasa en verde en **0.2** pero **Carpeta 2 GET** da **404**, el rol esta OK — falta ejecutar Carpeta 1.
 
 ---
 
@@ -231,8 +303,8 @@ Grant: **Authorization Code with PKCE** (requests **0.1** y **0.2**).
 
 | Claim | Rol | Acceso |
 |-------|-----|--------|
-| `extension_UserRole=GESTOR_GUIAS` | Gestor | Todos los endpoints |
-| `extension_UserRole=LECTOR_GUIAS` | Lector | Solo `GET /s3/{bucket}/object` |
+| `extension_UserRole=GESTOR_GUIAS` | Gestor (`lisbethbilbao1@gmail.com` — **0.1**) | Todos los endpoints |
+| `extension_UserRole=LECTOR_GUIAS` | Lector (`lisbeth.bilbao.merino@gmail.com` — **0.2**) | Solo `GET /s3/{bucket}/object` |
 
 ---
 
@@ -255,9 +327,9 @@ DELETE  {{api_gateway_url}}/s3/{{bucket}}/object?fecha=&transportista=&nombreGui
 ## Checklist pre-demo
 
 - [ ] Environment **Semana 6** activo
-- [ ] **Use Token Type = Access Token** en 0.1 (no ID Token)
-- [ ] Access Token fresco
-- [ ] **0.0 C** iss/aud/rol OK y test ID Token pasa
+- [ ] **0.1** Tests verde: `extension_UserRole` = **GESTOR_GUIAS**
+- [ ] **Carpeta 1** requests 1 + 2 ejecutadas (`s3_key_pedido_1` poblado)
+- [ ] **Use Token Type = Access Token** en 0.1 y 0.2 (no ID Token)
+- [ ] **0.2** Tests verde: `LECTOR_GUIAS` + **403** en Gateway (no requiere PDF)
+- [ ] **Carpeta 2** GET **200** PDF (no 404), POST **403**, DELETE **403**
 - [ ] **0.0 B** Gateway 200
-- [ ] Rutas PUT pedido y POST move en AWS (si aplica)
-- [ ] Spring redeployado con issuer alineado (push a main)

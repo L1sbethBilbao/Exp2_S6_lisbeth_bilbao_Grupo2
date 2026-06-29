@@ -180,20 +180,62 @@ Opcional (compatibilidad con API Gateway AWS): en el user flow, revisa **Token c
 
 ---
 
-### 4.7 Usuarios GESTOR y LECTOR
+### 4.7 Usuarios GESTOR y LECTOR (dos cuentas distintas)
 
-**Menú:** Azure AD B2C → **Users** (Usuarios) → selecciona usuario.
+La actividad exige **2 roles**. En B2C cada usuario lleva **un solo** valor en `extension_UserRole`. Para Postman y la presentación necesitas **dos usuarios**, no reutilizar el mismo email en 0.1 y 0.2.
 
-**Atributo personalizado:**
+**Asignación recomendada (proyecto Semana 6):**
 
-| Usuario | `extension_UserRole` |
-|---------|----------------------|
-| Gestor (Carpeta 1, 0.1) | `GESTOR_GUIAS` |
-| Lector (Carpeta 2, 0.2) | `LECTOR_GUIAS` |
+| Usuario (email) | Postman | `extension_UserRole` | Carpetas |
+|-----------------|---------|----------------------|----------|
+| `lisbethbilbao1@gmail.com` | **0.1** GESTOR | `GESTOR_GUIAS` | 1 |
+| `lisbeth.bilbao.merino@gmail.com` | **0.2** LECTOR | `LECTOR_GUIAS` | 2 |
 
-Verifica que cada usuario de prueba tenga el rol correcto antes de probar 0.1 vs 0.2.
+#### Paso A — Verificar atributo personalizado
 
-Para 0.2, cierra sesión B2C en el navegador o usa ventana privada para no reutilizar la sesión del GESTOR.
+**Menú:** Azure AD B2C → **User attributes** (Atributos de usuario).
+
+| Elemento | Valor esperado |
+|----------|----------------|
+| Nombre | `UserRole` (en tokens aparece como `extension_UserRole`) |
+| Tipo | String |
+
+Si no existe, créalo antes de asignar roles a usuarios.
+
+#### Paso B — Incluir el rol en el Access Token
+
+**Menú:** Azure AD B2C → **User flows** → `B2C_1_cdy2204-1` → **Application claims** (Notificaciones de aplicación).
+
+Marca **UserRole** (o `extension_UserRole`) para **Access Token** e **ID Token**.
+
+#### Paso C — Asignar rol a cada usuario
+
+**Menú:** Azure AD B2C → **Users** (Usuarios) → selecciona el usuario → **Edit** (Editar) o **Properties**.
+
+1. Usuario **`lisbethbilbao1@gmail.com`**
+   - Display name: ej. `Gestor Guias`
+   - Atributo **UserRole** / `extension_UserRole`: **`GESTOR_GUIAS`**
+   - **Save**
+
+2. Usuario **`lisbeth.bilbao.merino@gmail.com`**
+   - Display name: ej. `Lector Guias`
+   - Atributo **UserRole** / `extension_UserRole`: **`LECTOR_GUIAS`**
+   - **Save**
+
+Si el campo no aparece al editar el usuario, vuelve al user flow → **User attributes** y asegúrate de que el atributo esté seleccionado en el flujo.
+
+**Asignar valores con Graph API:** ver [UPDATE_USERS.md](UPDATE_USERS.md) (PATCH `extension_UserRole` cuando el portal no muestra el campo).
+
+#### Paso D — Comprobar en Postman
+
+| Request | Claim esperado en **0.0 C** |
+|---------|----------------------------|
+| Tras **0.1** (login gestor) | `extension_UserRole` = `GESTOR_GUIAS` |
+| Tras **0.2** (login lector) | `extension_UserRole` = `LECTOR_GUIAS` |
+
+Para **0.2**, cierra sesión B2C en el navegador o usa ventana privada para no reutilizar la sesión del GESTOR.
+
+**Error frecuente:** usar el mismo email en 0.1 y 0.2. La descarga (GET object) da **200** con ambos roles; la demo falla en Carpeta 2 (POST/DELETE deben dar **403** solo con token LECTOR).
 
 ---
 

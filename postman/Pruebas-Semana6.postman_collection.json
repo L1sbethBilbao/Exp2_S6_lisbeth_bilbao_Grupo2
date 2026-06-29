@@ -411,11 +411,7 @@
                   "}",
                   "const saved = syncOAuthAccessTokenToEnv() || pm.environment.get('access_token_lector');",
                   "if (saved) {",
-                  "    pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + saved });",
-                  "}",
-                  "const missing = ['fecha','transportista','nombreGuia'].filter(k => !pm.environment.get(k));",
-                  "if (missing.length) {",
-                  "    console.warn('Variables vacias para descarga S3: ' + missing.join(', ') + '. Ejecuta Carpeta 1 primero o completa el environment.');",
+                  "    pm.request.headers.remove('Authorization');",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -458,17 +454,13 @@
                   "    console.log('token_use:', payload.token_use || 'n/a', '| aud:', payload.aud, '| scp:', payload.scp || 'n/a');",
                   "    pm.test('NO es ID Token — usar Access Token (profesor)', () => pm.expect(isLikelyIdToken(payload)).to.be.false);",
                   "    pm.test('Access Token LECTOR_GUIAS', () => pm.expect(payload.extension_UserRole).to.eql('LECTOR_GUIAS'));",
+                  "    pm.test('iss alineado con B2C', () => pm.expect(payload.iss).to.eql(pm.environment.get('b2c_issuer_canonical')));",
+                  "    console.log('access_token_lector guardado. Siguiente: Carpeta 2');",
                   "} else {",
                   "    pm.test('FALTA TOKEN — Get New Access Token → Use Token Type Access Token → Send', () => pm.expect.fail('No Bearer token'));",
                   "    return;",
                   "}",
-                  "if (pm.response.code === 401 && pm.response.json().message === 'Unauthorized') {",
-                  "    pm.test('Gateway 401 — Use Token o revisar iss/aud AWS', () => pm.expect.fail('Unauthorized'));",
-                  "} else if (pm.response.code === 200) {",
-                  "    pm.test('200 OK — LECTOR descarga via Gateway', () => true);",
-                  "} else if (pm.response.code === 404) {",
-                  "    pm.test('404 — guia no existe; ejecuta Carpeta 1 antes (token OK si no es Unauthorized)', () => true);",
-                  "}"
+                  "pm.test('200 OK — login LECTOR OAuth completado', () => pm.response.to.have.status(200));"
                 ],
                 "type": "text/javascript"
               }
@@ -492,17 +484,8 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{api_gateway_url}}/s3/{{bucket}}/object?fecha={{fecha}}&transportista={{transportista}}&nombreGuia={{nombreGuia}}",
-              "host": ["{{api_gateway_url}}"],
-              "path": ["s3", "{{bucket}}", "object"],
-              "query": [
-                {"key": "fecha", "value": "{{fecha}}"},
-                {"key": "transportista", "value": "{{transportista}}"},
-                {"key": "nombreGuia", "value": "{{nombreGuia}}"}
-              ]
-            },
-            "description": "**Ejecutar después de Carpeta 1** (necesita `fecha`, `transportista`, `nombreGuia`).\n\n### Si Postman solo deja ID Token (Access token grisado)\nPostman habilita **Access token** solo si Azure devolvió `access_token` en la respuesta OAuth. Si solo hay `id_token`, el dropdown queda bloqueado en ID Token.\n\n**Solución:**\n1. **Manage Tokens** → eliminar `lector-access-token`\n2. Scope debe ser `{{b2c_scope}}` (openid + scope API `cdy2204-1`, no solo openid)\n3. **Get New Access Token** → login usuario **LECTOR** (cerrar sesión Azure/GESTOR antes si hace falta)\n4. En el popup deben verse **Access Token** e **ID Token** → **Use Token** con Access Token\n5. Si el popup solo muestra ID Token → revisar Azure B2C (Expose API + permiso del scope en la app)\n\n**Workaround temporal:** copiar Access Token del popup → pegar en `access_token_lector` en environment Semana 6.\n\n1. Authorization → **Get New Access Token** → login **LECTOR_GUIAS**\n2. **Use Token Type = Access Token** → **Use Token** → **Send**"
+            "url": "{{b2c_openid_config_url}}",
+            "description": "**Login LECTOR — solo OAuth.**\n\n### URL de esta request (200 OK)\n`{{b2c_openid_config_url}}` — metadata publica de Azure B2C. **No uses** `/api/pedidos` aqui (da **403** para LECTOR, es normal) ni S3 (necesita PDF).\n\n### Pasos\n1. Authorization → **OAuth 2.0** → **Get New Access Token** → login `lisbeth.bilbao.merino@gmail.com`\n2. **Use Token Type = Access Token** → **Use Token** → **Send**\n3. Tests verde: `LECTOR_GUIAS` + **200 OK**\n\n### Prueba real API Gateway (LECTOR)\n**Carpeta 2** → GET descargar guia → **200** PDF (tras Carpeta 1)"
           },
           "response": []
         }
