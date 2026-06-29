@@ -221,5 +221,5 @@ components:
           audience:
             - 49f4ab51-5e0e-4139-9cf4-15f566581b07
             - https://EmpresaTransportistaEFS.onmicrosoft.com/49f4ab51-5e0e-4139-9cf4-15f566581b07/cdy2204-1
-          issuer: https://empresatransportistaefs.b2clogin.com/empresatransportistaefs.onmicrosoft.com/B2C_1_cdy2204-1/v2.0/
+          issuer: https://empresatransportistaefs.b2clogin.com/tfp/972f25cf-cd03-4c70-84ea-285778b48398/b2c_1_cdy2204-1/v2.0/
 x-amazon-apigateway-importexport-version: "1.0"

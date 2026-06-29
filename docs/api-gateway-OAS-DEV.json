@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "Semana 6 — Empresa Transportista (merge DEV)",
-    "description": "OpenAPI 3.0 para import Merge en HTTP API c60n9nxi6c. Proxy a Spring Boot EC2 con JWT Authorizer Azure AD B2C (azureidaas). Alineado con Postman Pruebas-Semana6.",
+    "description": "Alias de api-gateway-OAS-DEV-proxy-only.json. Import preferido: proxy-only (mismo JWT azureidaas + proxy EC2). OpenAPI 3.0 para HTTP API c60n9nxi6c.",
     "version": "2026-06-28T00:00:00Z"
   },
   "servers": [
@@ -300,7 +300,7 @@
               "49f4ab51-5e0e-4139-9cf4-15f566581b07",
               "https://EmpresaTransportistaEFS.onmicrosoft.com/49f4ab51-5e0e-4139-9cf4-15f566581b07/cdy2204-1"
             ],
-            "issuer": "https://empresatransportistaefs.b2clogin.com/empresatransportistaefs.onmicrosoft.com/B2C_1_cdy2204-1/v2.0/"
+            "issuer": "https://empresatransportistaefs.b2clogin.com/tfp/972f25cf-cd03-4c70-84ea-285778b48398/b2c_1_cdy2204-1/v2.0/"
           }
         }
       }

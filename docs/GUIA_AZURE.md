@@ -331,7 +331,7 @@ Spring Boot valida issuer y audience en `src/main/resources/application.properti
 
 - [POSTMAN_PRUEBAS.md](../POSTMAN_PRUEBAS.md) — flujo Postman Semana 6
 - [AWS_GATEWAY_SETUP.md](AWS_GATEWAY_SETUP.md) — API Gateway y JWT Authorizer
-- [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json) — workaround si Gateway rechaza issuer B2C
+- [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json) — OAS principal (JWT `azureidaas` + proxy EC2)
 - [Semana6.postman_environment.json](../postman/Semana6.postman_environment.json) — variables OAuth
 - [Pruebas-Semana6.postman_collection.json](../postman/Pruebas-Semana6.postman_collection.json) — requests 0.1, 0.2, 0.0 C
 

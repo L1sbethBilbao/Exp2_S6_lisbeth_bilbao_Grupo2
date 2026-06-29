@@ -5,9 +5,9 @@ Base URL evaluacion: `https://c60n9nxi6c.execute-api.us-east-1.amazonaws.com/DEV
 Todas las pruebas usan **Access Token** (no ID Token) en header `Authorization: Bearer {access_token}`.
 
 **Coleccion:** `postman/Pruebas-Semana6.postman_collection.json`  
-**Environment:** copiar `postman/Semana6.postman_environment.example.json` → `postman/Semana6.postman_environment.json` (local, en `.gitignore`) y completar secretos desde `claves_actividad_semana_6.txt`. Nombre en Postman: **Semana 6**  
+**Environment:** crear `postman/Semana6.postman_environment.json` (local, en `.gitignore`) con las variables de la sección "OAuth 2.0 en Postman" y completar los secretos desde `claves_actividad_semana_6.txt`. Nombre en Postman: **Semana 6**  
 **Guía rápida de flujo:** [PRUEBAS_FLOW.md](PRUEBAS_FLOW.md)  
-**API Gateway OAS:** `docs/api-gateway-OAS-DEV.json` (JSON, recomendado) o `docs/api-gateway-OAS-DEV.yaml`  
+**API Gateway OAS:** `docs/api-gateway-OAS-DEV-proxy-only.json` (JSON, recomendado — JWT Auth + proxy EC2) o `docs/api-gateway-OAS-DEV.json` (alias)  
 **Setup AWS (Import Merge):** `docs/AWS_GATEWAY_SETUP.md`
 
 ---
@@ -38,14 +38,17 @@ sequenceDiagram
 
 ---
 
-## Issuer: dos valores distintos (normal en B2C)
+## Issuer: un único valor en forma `tfp` (verificado en 0.0 C)
+
+B2C emite el `iss` del Access Token en forma **tfp** con la política en **minúscula** (`b2c_1_cdy2204-1`). Ese **mismo** valor debe estar idéntico en los tres lugares:
 
 | Uso | Valor |
 |-----|-------|
-| **API Gateway** Authorizer (`b2c_issuer_gateway`) | `https://empresatransportistaefs.b2clogin.com/tfp/972f25cf-cd03-4c70-84ea-285778b48398/B2C_1_cdy2204-1/v2.0/` |
-| **Token JWT** claim `iss` / Spring (`b2c_issuer_canonical`) | `https://empresatransportistaefs.b2clogin.com/972f25cf-cd03-4c70-84ea-285778b48398/v2.0/` |
+| **Token JWT** claim `iss` (0.0 C) | `https://empresatransportistaefs.b2clogin.com/tfp/972f25cf-cd03-4c70-84ea-285778b48398/b2c_1_cdy2204-1/v2.0/` |
+| **API Gateway** Authorizer (`b2c_issuer_gateway`) | igual |
+| **Spring** `issuer-uri` (`b2c_issuer_canonical`) | igual |
 
-Azure B2C pone el UUID en el token, pero AWS exige issuer **tfp** para el discovery OIDC. **No confundir ambos.**
+Importante: el match es **case-sensitive**. Azure emite `b2c_1` en minúscula; el Authorizer AWS y el `issuer-uri` de Spring deben usar la misma capitalización.
 
 Audience Gateway: `b2c_audience` (client_id) **o** `b2c_audience_scope` (scope API)
 
@@ -237,7 +240,11 @@ Si **Carpeta 2 → GET descargar guia** devuelve:
 |--------|-------|--------|
 | **401** / `Unauthorized` | Token invalido o Gateway | OAuth / Authorizer |
 | **403** | Rol incorrecto | Token GESTOR en Carpeta 2 POST/DELETE |
-| **404** Object Not Found | Archivo no esta en S3 | Ejecutar **Carpeta 1** pasos 1 y 2 antes de **Carpeta 2 GET** |
+| **404** Object Not Found | Archivo no esta en S3 o `nombreGuia` desincronizada | Carpeta 1 pasos 1-2; reimportar coleccion (sync desde `s3_key_pedido_1`) |
+
+### 404 por nombreGuia desincronizado (Cloud 6-7)
+
+Si el mensaje cita `...-actualizado-actualizado.pdf` y ese archivo no esta en S3: los pasos **6. PUT** y **7. Mover objeto** mutaron/movieron la guia. La coleccion actualizada sincroniza Carpeta 2 GET desde `s3_key_pedido_1`. Workaround: `nombreGuia` = PDF que existe en bucket o regenerar guia (paso 2).
 
 ### Por que 0.1 GESTOR puede dar 200 y Carpeta 2 GET da 404
 
@@ -279,7 +286,8 @@ Si el test de rol pasa en verde en **0.2** pero **Carpeta 2 GET** da **404**, el
 
 | Respuesta | Origen | Accion |
 |-----------|--------|--------|
-| `{"message":"Unauthorized"}` | API Gateway JWT Authorizer | **Issuer/aud del token ≠ AWS.** Actualizar Authorizer: iss = tenant UUID (ver 0.0 C). Re-import OAS o editar consola. |
+| `{"message":"Unauthorized"}` | API Gateway JWT Authorizer | **Issuer/aud del token ≠ AWS.** Actualizar Authorizer: iss = forma `tfp` con `b2c_1` minúscula (ver 0.0 C). Re-import OAS o editar consola. |
+| `WWW-Authenticate: Bearer ... decode the Jwt` (body vacío) | Spring Boot (EC2) | `issuer-uri`/`jwk-set-uri` en `application.properties` ≠ token. Corregir a `tfp` y redeployar imagen. |
 | 401 con body Spring (timestamp, status) | Spring Boot | Token invalido para issuer Spring |
 | 403 Forbidden | Spring Security | Token OK pero rol incorrecto (LECTOR en endpoint GESTOR) |
 

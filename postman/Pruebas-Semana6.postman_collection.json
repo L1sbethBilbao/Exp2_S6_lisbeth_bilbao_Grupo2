@@ -82,9 +82,19 @@
                   "    return '';",
                   "}",
                   "const saved = syncOAuthAccessTokenToEnv() || pm.environment.get('access_token_gestor');",
-                  "if (saved) {",
-                  "    pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + saved });",
-                  "}"
+                  "if (!saved || saved.length < 20) {",
+                  "    throw new Error('SIN ACCESS TOKEN. Pasos: 1) Authorization → OAuth 2.0 2) Get New Access Token → login GESTOR 3) Use Token Type = Access Token 4) Use Token (obligatorio) 5) Send. Sin Use Token veras 401 sin body.');",
+                  "}",
+                  "pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + saved });",
+                  "try {",
+                  "    const p = JSON.parse(atob(saved.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));",
+                  "    console.log('Enviando Bearer | iss:', p.iss);",
+                  "    const expected = pm.environment.get('b2c_issuer_canonical');",
+                  "    if (p.iss !== expected) {",
+                  "        console.warn('iss token != environment. Token:', p.iss, '| Env:', expected);",
+                  "        console.warn('Azure emite b2c_1 en MINUSCULAS. Igualar AWS Authorizer y b2c_issuer_* en environment.');",
+                  "    }",
+                  "} catch (e) { /* ignore */ }"
                 ],
                 "type": "text/javascript"
               }
@@ -130,12 +140,18 @@
                   "pm.test('NO es ID Token — usar Access Token (profesor)', () => pm.expect(isLikelyIdToken(payload)).to.be.false);",
                   "pm.test('Access Token con extension_UserRole GESTOR', () => pm.expect(payload.extension_UserRole).to.eql('GESTOR_GUIAS'));",
                   "pm.test('iss alineado con Gateway y Spring', () => pm.expect(payload.iss).to.eql(pm.environment.get('b2c_issuer_canonical')));",
-                  "if (pm.response.code === 401 && pm.response.json().message === 'Unauthorized') {",
+                  "if (pm.response.code === 401) {",
+                  "    let gwMsg = '';",
+                  "    try { gwMsg = pm.response.json().message || ''; } catch (e) { gwMsg = '(body vacio — sin Bearer o Gateway sin JWT)'; }",
+                  "    console.log('401 Gateway | body:', gwMsg);",
                   "    console.log('Token iss:', payload.iss);",
                   "    console.log('Token aud:', payload.aud);",
-                  "    console.log('Gateway issuer esperado:', pm.environment.get('b2c_issuer_gateway'));",
-                  "    console.log('Audiences Gateway: client_id + scope API');",
-                  "    pm.test('Gateway 401 — revisar aud en AWS Authorizer (client_id Y scope API) y token nuevo OAuth', () => pm.expect.fail('Unauthorized'));",
+                  "    console.log('Environment iss:', pm.environment.get('b2c_issuer_canonical'));",
+                  "    console.log('AWS Authorizer debe ser IDENTICO al iss del token (b2c_1 minusculas) + Deploy DEV');",
+                  "    if (payload.iss !== pm.environment.get('b2c_issuer_canonical')) {",
+                  "        console.warn('Reimporta Semana6.postman_environment.json (issuer b2c_1 minusculas)');",
+                  "    }",
+                  "    pm.test('Gateway 401 — revisar Use Token, iss AWS (b2c_1 minusculas), audience y Deploy DEV', () => pm.expect.fail(gwMsg || 'Unauthorized'));",
                   "} else {",
                   "    pm.test('200 OK — GESTOR via API Gateway', () => pm.response.to.have.status(200));",
                   "}",
@@ -347,7 +363,7 @@
                       "const issOk = iss === pm.environment.get('b2c_issuer_canonical');",
                       "const audOk = aud.includes(pm.environment.get('b2c_audience')) || aud.includes(pm.environment.get('b2c_audience_scope'));",
                       "pm.test('NO es ID Token — usar Access Token (profesor)', () => pm.expect(isLikelyIdToken(payload)).to.be.false);",
-                      "pm.test('iss coincide con token B2C (tenant UUID)', () => pm.expect(issOk).to.be.true);",
+                      "pm.test('iss coincide con issuer tfp B2C (b2c_1 minusculas)', () => pm.expect(issOk).to.be.true);",
                       "console.log('Gateway usa issuer tfp distinto:', pm.environment.get('b2c_issuer_gateway'));",
                       "pm.test('aud contiene client_id o scope API', () => pm.expect(audOk).to.be.true);",
                       "pm.test('extension_UserRole presente', () => pm.expect(role).to.not.eql('SIN_CLAIM'));",
@@ -849,7 +865,13 @@
                   "script": {
                     "exec": [
                       "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                      "pm.environment.set('nombreGuia', pm.environment.get('nombreGuia') + '-actualizado');"
+                      "const base = pm.environment.get('nombreGuia').replace(/-actualizado/g, '');",
+                      "const fecha = pm.environment.get('fecha');",
+                      "const transportista = pm.environment.get('transportista');",
+                      "const updated = base + '-actualizado';",
+                      "pm.environment.set('nombreGuia', updated);",
+                      "pm.environment.set('s3_key_pedido_1', fecha + '/' + transportista + '/' + updated + '.pdf');",
+                      "console.log('PUT guia: s3_key_pedido_1 →', pm.environment.get('s3_key_pedido_1'));"
                     ],
                     "type": "text/javascript"
                   }
@@ -868,7 +890,7 @@
                   ]
                 },
                 "url": "{{api_gateway_url}}/s3/{{bucket}}/object",
-                "description": "Modificar guía existente en S3 y EFS."
+                "description": "Modificar guía existente en S3 y EFS. Tras 200 actualiza `nombreGuia` y `s3_key_pedido_1` (un solo -actualizado, idempotente)."
               },
               "response": []
             },
@@ -879,7 +901,12 @@
                   "listen": "test",
                   "script": {
                     "exec": [
-                      "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                      "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                      "const fecha = pm.environment.get('fecha');",
+                      "const transportista = pm.environment.get('transportista');",
+                      "pm.environment.set('nombreGuia', 'guia-movida-demo');",
+                      "pm.environment.set('s3_key_pedido_1', fecha + '/' + transportista + '/guia-movida-demo.pdf');",
+                      "console.log('Move: s3_key_pedido_1 →', pm.environment.get('s3_key_pedido_1'));"
                     ],
                     "type": "text/javascript"
                   }
@@ -897,7 +924,7 @@
                     {"key": "destKey", "value": "{{fecha}}/{{transportista}}/guia-movida-demo.pdf"}
                   ]
                 },
-                "description": "Mueve objeto dentro del mismo bucket (opcional demo)."
+                "description": "Mueve objeto dentro del mismo bucket (demo). Tras 200 actualiza `nombreGuia` y `s3_key_pedido_1` → guia-movida-demo.pdf."
               },
               "response": []
             },
@@ -937,7 +964,7 @@
     },
     {
       "name": "2. Validación rol LECTOR_GUIAS",
-      "description": "LECTOR puede descargar (200) pero no crear ni eliminar (403).",
+      "description": "LECTOR puede descargar (200) pero no crear ni eliminar (403). **Pre-requisito:** 0.2 con token LECTOR y Carpeta 1 pasos 1-2 (`s3_key_pedido_1`). El GET sincroniza `nombreGuia` desde `s3_key_pedido_1` (ignora mutaciones viejas de Cloud pasos 6-7).",
       "auth": {
         "type": "bearer",
         "bearer": [
@@ -952,6 +979,21 @@
         {
           "name": "1. GET — Descargar guía (LECTOR permitido → 200)",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const key = pm.environment.get('s3_key_pedido_1');",
+                  "if (!key) {",
+                  "    throw new Error('s3_key_pedido_1 vacio. ORDEN: Carpeta 1 → 1. POST Crear pedido 1 → 2. POST Generar guia pedido 1 (201).');",
+                  "}",
+                  "const fileName = key.split('/').pop().replace(/\\.pdf$/i, '');",
+                  "pm.environment.set('nombreGuia', fileName);",
+                  "console.log('Carpeta 2 GET: nombreGuia sincronizado desde s3_key_pedido_1 →', fileName);"
+                ],
+                "type": "text/javascript"
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -975,7 +1017,7 @@
                 {"key": "nombreGuia", "value": "{{nombreGuia}}"}
               ]
             },
-            "description": "Unico endpoint permitido para LECTOR_GUIAS."
+            "description": "Descarga guia PDF via Gateway. Pre-request sincroniza `nombreGuia` desde `s3_key_pedido_1` (fuente de verdad tras generar/actualizar/mover guia)."
           },
           "response": []
         },

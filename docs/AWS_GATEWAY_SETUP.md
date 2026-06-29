@@ -4,10 +4,11 @@ Base URL: `https://c60n9nxi6c.execute-api.us-east-1.amazonaws.com/DEV`
 
 Archivos OpenAPI listos para import:
 
-| Archivo | Formato |
-|---------|---------|
-| [api-gateway-OAS-DEV.json](api-gateway-OAS-DEV.json) | JSON (recomendado) |
-| [api-gateway-OAS-DEV.yaml](api-gateway-OAS-DEV.yaml) | YAML equivalente |
+| Archivo | Formato | Uso |
+|---------|---------|-----|
+| [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json) | JSON | **Recomendado** — 13 rutas + JWT `azureidaas` + proxy EC2 |
+| [api-gateway-OAS-DEV.json](api-gateway-OAS-DEV.json) | JSON | Referencia / alias (mismo contenido securitizado) |
+| [api-gateway-OAS-DEV.yaml](api-gateway-OAS-DEV.yaml) | YAML | Equivalente YAML (referencia) |
 
 ---
 
@@ -19,19 +20,20 @@ Usa este flujo para aplicar todas las rutas y el authorizer sobre la API existen
 
 1. **API Gateway** → **HTTP APIs** → seleccionar API `cdy2204-1` (id `c60n9nxi6c`).
 2. Menú **Develop** → **Import**.
-3. Seleccionar [api-gateway-OAS-DEV.json](api-gateway-OAS-DEV.json).
+3. Seleccionar [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json).
 4. Modo de import: **Merge** (actualiza rutas del OAS; no elimina rutas huérfanas solas).
 5. Confirmar import.
 
 ### Post-import (obligatorio)
 
 1. **Routes** → eliminar manualmente la ruta obsoleta `GET /api/pedidos/{pedido_id_1}` si sigue existiendo (duplicado del export anterior).
-2. **Authorizers** → verificar `azureidaas` (issuer y audience abajo).
-3. **Integrations** → spot-check:
+2. **Authorization** → pestaña *Asociar autorizadores a rutas* → verificar marca azul **JWT Auth** en las **13** operaciones (evidencia profesor).
+3. **Authorizers** → verificar `azureidaas` (issuer y audience abajo).
+4. **Integrations** → spot-check:
    - `GET /s3/{bucket}/objects` → `http://52.45.88.121:8080/s3/{bucket}/objects` (no `cdy2204-1` hardcodeado).
    - `PUT /api/pedidos/{pedido_id}` y `POST /s3/{bucket}/move` presentes.
-4. **Deploy** → stage **DEV** (sin deploy los cambios no aplican en la URL invoke).
-5. Confirmar invoke URL: `https://c60n9nxi6c.execute-api.us-east-1.amazonaws.com/DEV`.
+5. **Deploy** → stage **DEV** (sin deploy los cambios no aplican en la URL invoke).
+6. Confirmar invoke URL: `https://c60n9nxi6c.execute-api.us-east-1.amazonaws.com/DEV`.
 
 ### Si cambia la IP de EC2
 
@@ -52,7 +54,7 @@ Significa que la API **no tiene rutas con integración válida** (lista vacía o
 1. **API Gateway** → HTTP APIs → `c60n9nxi6c` → menú **Routes**.
 2. Si la lista está **vacía** o casi vacía:
    - **Develop** → **Import**.
-   - Archivo: [api-gateway-OAS-DEV.json](api-gateway-OAS-DEV.json).
+   - Archivo: [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json).
    - Modo: **Merge**. Si sigue vacío, repetir con **Overwrite** (restaura las 13 operaciones del OAS).
 3. Tras import, en **Routes** debes ver **7 rutas** con métodos, por ejemplo:
    - `/api/pedidos` (GET, POST)
@@ -73,21 +75,38 @@ Significa que la API **no tiene rutas con integración válida** (lista vacía o
 |-------|-------|
 | Tipo | JWT |
 | Identity source | `$request.header.Authorization` |
-| Issuer (API Gateway — user flow B2C) | `https://empresatransportistaefs.b2clogin.com/empresatransportistaefs.onmicrosoft.com/B2C_1_cdy2204-1/v2.0/` |
-| Issuer (claim `iss` en el JWT / Spring Boot) | `https://empresatransportistaefs.b2clogin.com/972f25cf-cd03-4c70-84ea-285778b48398/v2.0/` |
+| **Issuer (debe coincidir con `iss` del token — ver 0.0 C)** | `https://empresatransportistaefs.b2clogin.com/tfp/972f25cf-cd03-4c70-84ea-285778b48398/b2c_1_cdy2204-1/v2.0/` |
 | Audience | `49f4ab51-5e0e-4139-9cf4-15f566581b07` y/o scope API `https://EmpresaTransportistaEFS.onmicrosoft.com/49f4ab51-5e0e-4139-9cf4-15f566581b07/cdy2204-1` |
 
-**Por qué sigue Unauthorized:** Azure B2C pone en el token `iss` = tenant UUID, pero el JWT Authorizer de AWS compara contra el issuer configurado (user flow). Ese desajuste es conocido con B2C + HTTP API.
+**Issuer real del token (verificado en 0.0 C):** B2C emite el `iss` en forma **tfp** con la política en minúscula (`b2c_1_cdy2204-1`). Ese mismo valor debe estar **idéntico** en el Authorizer AWS y en el `issuer-uri` de Spring (`application.properties`).
 
-### Solucion rapida (probar Postman ya)
+**Identificar el origen del 401:** si el body es `{"message":"Unauthorized"}` lo rechaza el **Gateway** (issuer/aud del Authorizer); si la respuesta trae header `WWW-Authenticate: Bearer error="invalid_token" ... decode the Jwt` con body vacío, lo rechaza **Spring** (issuer-uri/jwk-set-uri en EC2).
 
-1. **Develop** → **Import** → [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json) → **Overwrite**.
-2. **Deploy** DEV (rutas sin JWT en Gateway; Spring valida en EC2).
-3. Postman **0.1** con OAuth → debe dar **200** si EC2 tiene Spring actualizado.
+### Arreglo inmediato en consola AWS (sin esperar reimport)
 
-### Solucion con JWT en Gateway (evaluacion)
+1. **API Gateway** → **Authorizers** → `azureidaas` → **Edit**.
+2. **Issuer** = copiar el `iss` exacto de **0.0 C** (consola Postman), forma **tfp**:
+   `https://empresatransportistaefs.b2clogin.com/tfp/972f25cf-cd03-4c70-84ea-285778b48398/b2c_1_cdy2204-1/v2.0/`
+3. **Audience** = ambos valores (client_id + scope API).
+4. **Save** → **Deploy** DEV.
+5. Postman **0.1**: Manage Tokens → borrar → Get New Access Token → Use Token → Send.
 
-Reimportar [api-gateway-OAS-DEV.json](api-gateway-OAS-DEV.json) con issuer user flow + ambos audience. Si sigue 401, usar proxy-only para demo y documentar limitacion B2C en Word.
+O reimportar [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json) (Merge) — ya trae el issuer `tfp` alineado con B2C.
+
+### Flujo principal (evaluacion — JWT Auth en Gateway)
+
+1. **Develop** → **Import** → [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json) → **Merge**.
+2. **Authorization** → confirmar **JWT Auth** en las 13 rutas.
+3. **Deploy** DEV.
+4. Postman **0.1** → **0.0 B** → debe dar **200** si issuer/audience coinciden con el token B2C.
+
+### Fallback (solo si Gateway rechaza tokens B2C)
+
+Si **0.0 A** EC2 da 200 pero **0.0 B** Gateway da 401 tras ajustar issuer/audience:
+
+1. Crear copia del OAS **sin** bloques `security` ni `components` (version historica sin JWT en Gateway).
+2. **Import** → **Overwrite** con esa copia (Spring valida JWT en EC2; no habra marca azul JWT Auth).
+3. Documentar la limitacion B2C + issuer en el Word de la actividad.
 
 ### Si Postman devuelve `{"message":"Unauthorized"}` (rutas OK, token enviado)
 
@@ -97,7 +116,7 @@ Reimportar [api-gateway-OAS-DEV.json](api-gateway-OAS-DEV.json) con issuer user 
 4. En AWS Authorizer `azureidaas` verificar **Audience** (ambos valores):
    - `49f4ab51-5e0e-4139-9cf4-15f566581b07`
    - `https://EmpresaTransportistaEFS.onmicrosoft.com/49f4ab51-5e0e-4139-9cf4-15f566581b07/cdy2204-1`
-5. **Issuer** en AWS = formato **tfp** (tabla JWT arriba).
+5. **Issuer** en AWS = el mismo `iss` que muestra **0.0 C** (forma `tfp` con `b2c_1_cdy2204-1` en minúscula).
 6. **Deploy** DEV.
 7. Comparar **0.0 A** (EC2) vs **0.0 B** (Gateway):
    - EC2 200 + Gateway 401 → problema en Authorizer AWS (aud/issuer).
@@ -107,7 +126,7 @@ Reimportar [api-gateway-OAS-DEV.json](api-gateway-OAS-DEV.json) con issuer user 
 
 ### Si el Import falla: "Invalid issuer" / "Unable to create Authorizer"
 
-El issuer del OAS debe ser **tfp**, no el UUID del tenant. Reimporta [api-gateway-OAS-DEV.json](api-gateway-OAS-DEV.json) actualizado, o crea el authorizer manualmente con el Issuer **tfp** de la tabla arriba.
+El issuer del OAS debe coincidir con el claim `iss` del Access Token (forma `tfp`). Reimporta [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json) o edita `azureidaas` manualmente en consola.
 
 ---
 
@@ -200,7 +219,23 @@ Diagnostico rapido:
 
 ## Evidencia para documento Word
 
-1. Captura Import Merge con archivo OAS.
-2. Captura Authorizer con issuer/audience.
-3. Captura rutas del stage DEV (13 operaciones).
-4. Postman: **0.0 C** + **0.0 B** (200) + **Carpeta 1** completa.
+1. Captura Import Merge con [api-gateway-OAS-DEV-proxy-only.json](api-gateway-OAS-DEV-proxy-only.json).
+2. Captura **Authorization** → JWT Auth azul en las 13 rutas.
+3. Captura Authorizer `azureidaas` con issuer/audience.
+4. Captura rutas del stage DEV (13 operaciones).
+5. Postman: **0.0 C** + **0.0 B** (200) + **Carpeta 1** completa.
+
+---
+
+## Checklist post-import (verificacion manual en AWS)
+
+Ejecutar en consola AWS tras Import Merge + Deploy DEV:
+
+| # | Donde | Que verificar |
+|---|-------|---------------|
+| 1 | **Authorization** | Marca azul **JWT Auth** en GET/POST/PUT/DELETE de las 13 operaciones |
+| 2 | **Authorizers** | `azureidaas` con issuer = `iss` del token (forma `tfp`, `b2c_1` minúscula) y ambos audience |
+| 3 | **Deploy** | Stage **DEV** desplegado (fecha reciente) |
+| 4 | Postman **0.0 B** | GET `/api/pedidos` via Gateway → **200** |
+| 5 | Postman **Carpeta 3** | Sin token → **401** |
+| 6 | Postman **Carpeta 1–2** | Flujo GESTOR/LECTOR sin cambios en URLs ni OAuth |

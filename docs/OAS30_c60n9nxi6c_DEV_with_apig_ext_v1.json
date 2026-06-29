@@ -1,0 +1,325 @@
+{
+  "openapi" : "3.0.1",
+  "info" : {
+    "title" : "Semana 6 — JWT Auth + Proxy EC2 (DEV)",
+    "description" : "Import Merge en HTTP API c60n9nxi6c. JWT Authorizer azureidaas (Azure B2C) en Gateway + proxy HTTP a Spring Boot EC2. Alineado con Postman Pruebas-Semana6.",
+    "version" : "2026-06-28T00:00:00Z"
+  },
+  "servers" : [ {
+    "url" : "https://c60n9nxi6c.execute-api.us-east-1.amazonaws.com/{basePath}",
+    "variables" : {
+      "basePath" : {
+        "default" : "DEV"
+      }
+    }
+  } ],
+  "paths" : {
+    "/api/pedidos/{pedido_id}" : {
+      "get" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for GET /api/pedidos/{pedido_id}"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "GET",
+          "uri" : "http://52.45.88.121:8080/api/pedidos/{pedido_id}",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "put" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for PUT /api/pedidos/{pedido_id}"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "PUT",
+          "uri" : "http://52.45.88.121:8080/api/pedidos/{pedido_id}",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "delete" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for DELETE /api/pedidos/{pedido_id}"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "DELETE",
+          "uri" : "http://52.45.88.121:8080/api/pedidos/{pedido_id}",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "parameters" : [ {
+        "name" : "pedido_id",
+        "in" : "path",
+        "description" : "Generated path parameter for pedido_id",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/s3/{bucket}/object" : {
+      "get" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for GET /s3/{bucket}/object"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "GET",
+          "uri" : "http://52.45.88.121:8080/s3/{bucket}/object",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "put" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for PUT /s3/{bucket}/object"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "PUT",
+          "uri" : "http://52.45.88.121:8080/s3/{bucket}/object",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "post" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for POST /s3/{bucket}/object"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "POST",
+          "uri" : "http://52.45.88.121:8080/s3/{bucket}/object",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "delete" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for DELETE /s3/{bucket}/object"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "DELETE",
+          "uri" : "http://52.45.88.121:8080/s3/{bucket}/object",
+          "connectionType" : "INTERNET",
+          "timeoutInMillis" : 30000
+        }
+      },
+      "parameters" : [ {
+        "name" : "bucket",
+        "in" : "path",
+        "description" : "Generated path parameter for bucket",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/pedidos" : {
+      "get" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for GET /api/pedidos"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "GET",
+          "uri" : "http://52.45.88.121:8080/api/pedidos",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "post" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for POST /api/pedidos"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "POST",
+          "uri" : "http://52.45.88.121:8080/api/pedidos",
+          "connectionType" : "INTERNET"
+        }
+      }
+    },
+    "/s3/{bucket}/consulta" : {
+      "get" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for GET /s3/{bucket}/consulta"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "GET",
+          "uri" : "http://52.45.88.121:8080/s3/{bucket}/consulta",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "parameters" : [ {
+        "name" : "bucket",
+        "in" : "path",
+        "description" : "Generated path parameter for bucket",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/s3/{bucket}/objects" : {
+      "get" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for GET /s3/{bucket}/objects"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "GET",
+          "uri" : "http://52.45.88.121:8080/s3/{bucket}/objects",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "parameters" : [ {
+        "name" : "bucket",
+        "in" : "path",
+        "description" : "Generated path parameter for bucket",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/pedidos/{pedido_id}/generar-guia" : {
+      "post" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for POST /api/pedidos/{pedido_id}/generar-guia"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "POST",
+          "uri" : "http://52.45.88.121:8080/api/pedidos/{pedido_id}/generar-guia",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "parameters" : [ {
+        "name" : "pedido_id",
+        "in" : "path",
+        "description" : "Generated path parameter for pedido_id",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/s3/{bucket}/move" : {
+      "post" : {
+        "responses" : {
+          "default" : {
+            "description" : "Default response for POST /s3/{bucket}/move"
+          }
+        },
+        "security" : [ {
+          "azureidaas" : [ ]
+        } ],
+        "x-amazon-apigateway-integration" : {
+          "payloadFormatVersion" : "1.0",
+          "type" : "http_proxy",
+          "httpMethod" : "POST",
+          "uri" : "http://52.45.88.121:8080/s3/{bucket}/move",
+          "connectionType" : "INTERNET"
+        }
+      },
+      "parameters" : [ {
+        "name" : "bucket",
+        "in" : "path",
+        "description" : "Generated path parameter for bucket",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    }
+  },
+  "components" : {
+    "securitySchemes" : {
+      "azureidaas" : {
+        "type" : "oauth2",
+        "flows" : { },
+        "x-amazon-apigateway-authorizer" : {
+          "identitySource" : "$request.header.Authorization",
+          "jwtConfiguration" : {
+            "audience" : [ "49f4ab51-5e0e-4139-9cf4-15f566581b07", "https://EmpresaTransportistaEFS.onmicrosoft.com/49f4ab51-5e0e-4139-9cf4-15f566581b07/cdy2204-1" ],
+            "issuer" : "https://empresatransportistaefs.b2clogin.com/tfp/972f25cf-cd03-4c70-84ea-285778b48398/b2c_1_cdy2204-1/v2.0/"
+          },
+          "type" : "jwt"
+        }
+      }
+    }
+  },
+  "x-amazon-apigateway-importexport-version" : "1.0"
+}
