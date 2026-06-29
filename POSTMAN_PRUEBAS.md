@@ -1,298 +1,263 @@
-# Guia de pruebas Postman y checklist de video
+# Guia de pruebas Postman — Semana 6
 
-Base URL: `http://<IP-ELASTICA-EC2>:8080`
+Base URL evaluacion: `https://c60n9nxi6c.execute-api.us-east-1.amazonaws.com/DEV`
 
-Reemplaza los valores de ejemplo segun tu entorno.
+Todas las pruebas usan **Access Token** (no ID Token) en header `Authorization: Bearer {access_token}`.
 
-**Coleccion Postman:** `postman/Pruebas-Semana3.postman_collection.json`
-
-**Importar:** Postman → Import → seleccionar el archivo JSON → editar variable `ec2_host` con tu IP.
-
-La coleccion tiene dos carpetas secuenciales:
-- **1. Negocio — Pedidos y Guias** — crear pedidos, generar PDF automatico (`POST /api/pedidos/{id}/generar-guia`)
-- **2. Cloud — Ordenamiento EFS + S3** — listar bucket, consultar con filtros, descargar, PUT, DELETE (como el profesor)
+**Coleccion:** `postman/Pruebas-Semana6.postman_collection.json`  
+**Environment:** copiar `postman/Semana6.postman_environment.example.json` → `postman/Semana6.postman_environment.json` (local, en `.gitignore`) y completar secretos desde `claves_actividad_semana_6.txt`. Nombre en Postman: **Semana 6**  
+**API Gateway OAS:** `docs/api-gateway-OAS-DEV.json` (JSON, recomendado) o `docs/api-gateway-OAS-DEV.yaml`  
+**Setup AWS (Import Merge):** `docs/AWS_GATEWAY_SETUP.md`
 
 ---
 
-## Cruce con actividad, pauta y apuntes
+## Arquitectura esperada
 
-| Fuente | Requisito | Como se cumple en este proyecto |
-|--------|-----------|----------------------------------|
-| **actividad_S3.txt** | EFS temporal | `PedidoGuiaService` → `EfsService.saveBytes()` en `/app/efs/{fecha}/{transportista}/` |
-| **actividad_S3.txt** | S3 por fecha/transportista | `AwsS3Service.uploadBytes()` con key `20250604/TransportesSur/guia-PED-001.pdf` |
-| **actividad_S3.txt** | Crear guias de despacho | `POST /api/pedidos/{id}/generar-guia` genera PDF desde el pedido |
-| **actividad_S3.txt** | Modificar, eliminar, consultar, descargar | Endpoints en `/s3/{bucket}/` (igual al profesor) |
-| **actividad_S3.txt** | Sin validacion permisos descarga | No hay Spring Security (profesor: proximas clases) |
-| **actividad_S3.txt** | Docker Hub + GitHub Actions EC2 | `deploy.yml` |
-| **pauta 1** | EFS organizado | Misma key que S3; ver `ls` en EC2 y `docker exec` |
-| **pauta 2** | S3 automatico ordenado | POST sube a bucket con prefijo fecha/transportista |
-| **pauta 3** | Modificar en S3 | PUT actualiza mismo objeto |
-| **pauta 4** | Descargar contenido | `GET /s3/{bucket}/object` devuelve bytes del PDF |
-| **pauta 5** | Consultar con filtros | `GET /s3/{bucket}/consulta?fecha=&transportista=` filtra por prefijo |
-| **pauta 6** | Pipeline CI/CD | Push a `main` dispara workflow |
-| **pauta 7** | Video explicativo | Guion abajo + apuntes comandos EC2 |
-| **apuntes** | `df -h`, `ls`, `docker exec` | Seccion 6 — carpeta `20250604/TransportesSur/` (no `pdfs/` del demo del profesor) |
+```mermaid
+sequenceDiagram
+  participant PM as Postman
+  participant B2C as Azure_AD_B2C
+  participant GW as API_Gateway
+  participant EC2 as Spring_Boot
+  participant S3 as S3_EFS
 
-**Nota:** El demo del profesor (`ms-administracion-archivos`) usa key `pdfs/testEFS1.pdf`. Tu actividad pide **fecha/transportista**, por eso en EFS veras carpetas `20250604/TransportesSur/` y no `pdfs/`.
+  PM->>B2C: OAuth2 Authorization Code
+  B2C->>PM: access_token JWT
+  PM->>GW: Bearer access_token
+  GW->>GW: JWT Authorizer azureidaas
+  GW->>EC2: http_proxy + Authorization
+  EC2->>EC2: Spring Security + roles
+  EC2->>S3: operaciones guias
+  EC2-->>PM: respuesta
+```
+
+**Nota del profesor:** usar **Access Token** para llamar APIs. El **ID Token** es para identidad del usuario en frontend, no para autorizar backend. **Client Credentials** es backend-a-backend sin usuario; en Semana 6 se usa login de usuario porque necesitas `extension_UserRole`.
+
+**API Gateway no llama a Azure en cada request** — valida el JWT localmente (iss, aud, firma).
 
 ---
 
-## Orden para el VIDEO (apuntes + pauta)
+## Issuer: dos valores distintos (normal en B2C)
 
-### Carpeta 1 — Negocio
-1. **POST** crear pedido 1 → **POST** generar guia (Pauta 1 y 2; PDF generado por el sistema)
-2. **POST** crear pedido 2 → **POST** generar segunda guia (otra carpeta `20250605/TransportesNorte/`)
-3. **EC2** — `df -h`, `ls -R /home/ec2-user/efs`, `docker exec` (apuntes 1-7)
+| Uso | Valor |
+|-----|-------|
+| **API Gateway** Authorizer (`b2c_issuer_gateway`) | `https://empresatransportistaefs.b2clogin.com/tfp/972f25cf-cd03-4c70-84ea-285778b48398/B2C_1_cdy2204-1/v2.0/` |
+| **Token JWT** claim `iss` / Spring (`b2c_issuer_canonical`) | `https://empresatransportistaefs.b2clogin.com/972f25cf-cd03-4c70-84ea-285778b48398/v2.0/` |
 
-### Carpeta 2 — Cloud
-4. **GET list** — mostrar las 2 keys en el bucket
-5. **GET consulta** — filtrar por fecha/transportista (`total: 1` en cada caso)
-6. **GET download** — descargar PDF y abrirlo (Pauta 4)
-7. **PUT** — modificar guia (Pauta 3)
-8. **DELETE** — eliminar segunda guia
-9. **Consola S3** — verificar cambios
-10. **Git push** — pipeline en vivo (Pauta 6)
-11. **Explicar con detalle** (Pauta 7)
+Azure B2C pone el UUID en el token, pero AWS exige issuer **tfp** para el discovery OIDC. **No confundir ambos.**
+
+Audience Gateway: `b2c_audience` (client_id) **o** `b2c_audience_scope` (scope API)
 
 ---
 
-## 1. Crear pedido y generar guia — Pauta 1 y 2
+## Contraste rutas: Gateway OAS vs Spring Boot
 
-**Paso A — Crear pedido:**
-
-```
-POST http://<IP>:8080/api/pedidos
-Content-Type: application/json
-```
-
-```json
-{
-  "cliente": "Maria Lopez",
-  "direccion": "Av. Libertad 123, Santiago",
-  "descripcion": "Caja mediana fragil",
-  "transportista": "TransportesSur",
-  "fecha": "20250604"
-}
-```
-
-**Respuesta:** `201 Created` con `id: "PED-001"`.
-
-**Paso B — Generar guia (sin subir PDF manual):**
-
-```
-POST http://<IP>:8080/api/pedidos/PED-001/generar-guia
-```
-
-**Respuesta:**
-
-```json
-{
-  "key": "20250604/TransportesSur/guia-PED-001.pdf",
-  "fecha": "20250604",
-  "transportista": "TransportesSur",
-  "nombreGuia": "guia-PED-001.pdf",
-  "mensaje": "Guia generada y almacenada en EFS y S3"
-}
-```
-
-**Verificar en EC2:**
-
-```bash
-ls -R /home/ec2-user/efs/
-# 20250604/TransportesSur/guia-PED-001.pdf
-```
-
-**Verificar en consola AWS S3:** objeto con key `20250604/TransportesSur/guia-PED-001.pdf`
+| Metodo | Spring Boot | En Gateway export | Postman | Estado |
+|--------|-------------|-------------------|---------|--------|
+| GET/POST | `/api/pedidos` | Si | Si | OK |
+| GET | `/api/pedidos/{id}` | Si | Si | OK |
+| PUT | `/api/pedidos/{id}` | **No** | Si | Agregar en AWS |
+| DELETE | `/api/pedidos/{id}` | Si | Si | OK |
+| POST | `/api/pedidos/{id}/generar-guia` | Si | Si | OK |
+| GET | `/s3/{bucket}/objects` | Si | Si | Corregir URI `{bucket}` |
+| GET | `/s3/{bucket}/consulta` | Si | Si | OK |
+| GET | `/s3/{bucket}/object` | Si | Si | OK (LECTOR+GESTOR) |
+| POST/PUT/DELETE | `/s3/{bucket}/object` | Si | Si | OK |
+| POST | `/s3/{bucket}/move` | **No** | Si | Agregar en AWS |
 
 ---
 
-## 2. Listar todo el bucket (GET) — Carpeta 2, paso 1
+## EC2 vs API Gateway — que URL usar
 
-```
-GET http://<IP>:8080/s3/<BUCKET>/objects
-```
+| Request | URL | Cuando usar |
+|---------|-----|-------------|
+| **0.1** Login GESTOR | `{{api_gateway_url}}/api/pedidos` | OAuth + primera prueba via **Gateway** (evaluacion) |
+| **0.0 B** diagnostico | `{{api_gateway_url}}/api/pedidos` | Confirmar JWT Authorizer AWS |
+| **0.0 A** diagnostico | `http://{{ec2_host}}:8080/api/pedidos` | Solo debug Spring directo |
+| **Carpeta 1** | `{{api_gateway_url}}/...` | Flujo completo evaluacion |
+| **0.2** Login LECTOR | `{{api_gateway_url}}/s3/.../object` | Despues de Carpeta 1 |
+| **Carpeta 4** | EC2 directo | No usar en evaluacion |
 
-**Respuesta esperada:** array con **todas** las keys del bucket (sin filtros):
+**Importante:** OAuth obtiene el token de **Azure B2C**, no de EC2 ni Gateway. Sin **Use Token** en Authorization, ambos endpoints dan Unauthorized.
 
-```json
-[
-  {
-    "key": "20250604/TransportesSur/guia-PED-001.pdf",
-    "size": 1234,
-    "lastModified": "..."
-  },
-  {
-    "key": "20250605/TransportesNorte/guia-PED-002.pdf",
-    "size": 1180,
-    "lastModified": "..."
-  }
-]
-```
+**Nota Postman:** el script de **0.1/0.2** ya no bloquea antes de Send — Postman agrega el Bearer OAuth *después* del pre-request. Si falla, el test indicará si faltó Use Token.
 
-Diferencia con consulta: **list** = inventario completo; **consulta** = filtrado por fecha/transportista con campo `total`.
+**Error `access_token_gestor vacio` en 0.0:** significa que no ejecutaste **0.1** con **Use Token → Send** antes. El pre-request de 0.1 guarda el token en el environment al hacer Send (aunque la respuesta sea 401). Luego ejecuta 0.0 C → 0.0 B → 0.0 A.
 
----
+### Postman: dropdown de tokens confuso
 
-## 3. Consultar guias (GET) — Pauta 5
+No busques un token llamado **"user token"** — no existe. Postman muestra tokens guardados con nombres genéricos (**Token Name**) o viejos (**token-gestor**).
 
-```
-GET http://<IP>:8080/s3/<BUCKET>/consulta?fecha=20250604&transportista=TransportesSur
-```
+| Paso | Qué hacer |
+|------|-----------|
+| 1 | Abre request **0.1** (no 0.0) |
+| 2 | Authorization → **OAuth 2.0** (no "Current Token" ni Bearer manual) |
+| 3 | **Get New Access Token** → login Azure GESTOR |
+| 4 | En popup: pestaña **Access Token** (profesor: NO ID Token) |
+| 5 | **Use Token** → **Use Token Type = Access Token** |
+| 6 | **Send** en 0.1 |
+| 7 | Environment **Semana 6** → variable `access_token_gestor` debe tener JWT |
 
-**Respuesta esperada:**
-
-```json
-{
-  "total": 1,
-  "fecha": "20250604",
-  "transportista": "TransportesSur",
-  "guias": [
-    {
-      "key": "20250604/TransportesSur/guia-PED-001.pdf",
-      "size": 1234,
-      "lastModified": "..."
-    }
-  ]
-}
-```
-
-Con `fecha=20250605&transportista=TransportesNorte` solo aparece la segunda guia (`total: 1`).
-
-Importante: esto **cuenta y lista metadatos**. No descarga el PDF.
+Si `token-gestor` no funciona: **Manage Tokens** → eliminar tokens viejos → repetir desde paso 3. Tras reimportar la colección el nombre nuevo es **gestor-access-token**.
 
 ---
 
-## 4. Descargar guia (GET) — Pauta 4
+## Use Token Type = Access Token (obligatorio)
 
-```
-GET http://<IP>:8080/s3/<BUCKET>/object?fecha=20250604&transportista=TransportesSur&nombreGuia=guia-PED-001
-```
+Según el profesor (`palabras_del_profesor_semana_6.txt`):
 
-**Respuesta esperada:** archivo PDF binario (Save Response → guardar y abrir el PDF).
+- **Access Token** → autoriza llamadas al API Gateway y Spring Boot.
+- **ID Token** → identifica al usuario en el frontend; usarlo contra el backend es **mala práctica**.
 
-No basta con listar; debes **obtener el contenido** del archivo.
+Azure B2C devuelve **ambos** tokens. Postman muestra el dropdown **Use Token Type** cuando existe `id_token` en la respuesta OAuth. Debes seleccionar **Access Token**, no ID Token.
 
----
+| Señal en JWT (request **0.0 C**) | Access Token (correcto) | ID Token (incorrecto) |
+|----------------------------------|-------------------------|------------------------|
+| Uso | Llamar APIs | Identidad del usuario |
+| `token_use` | ausente o distinto de `id` | suele ser `id` |
+| `aud` | client_id **y/o** scope API (`b2c_audience_scope`) | casi solo `b2c_audience` (client_id) |
+| `scp` | puede incluir `cdy2204-1` | ausente |
+| `extension_UserRole` | presente | puede estar (no basta para distinguir) |
 
-## 5. Modificar guia (PUT) — Pauta 3
+La colección incluye tests automáticos:
 
-```
-PUT http://<IP>:8080/s3/<BUCKET>/object
-Content-Type: multipart/form-data
-```
+- **0.1** / **0.0 C**: `NO es ID Token — usar Access Token (profesor)`
+- **0.0 A** / **0.0 B**: bloquean el envío si `access_token_gestor` parece ID Token
 
-| Campo | Valor ejemplo |
-|-------|---------------|
-| file | PDF (puedes usar el descargado en paso 4) |
-| fecha | 20250604 |
-| transportista | TransportesSur |
-| nombreGuia | guia-PED-001 |
+Si falla ese test: en **0.1** → **Use Token Type = Access Token** → **Get New Access Token** → **Use Token** → **Send**.
 
-**Verificar:** en consola S3, el archivo mantiene la misma key pero cambia tamano/fecha de modificacion.
+### Access token grisado en Postman (solo ID Token)
 
----
+Postman **no bloquea** Access Token por la colección: lo deshabilita cuando **Azure no envió `access_token`** en esa sesión OAuth (solo `id_token`). Pasa igual en **0.1** y **0.2** si el scope o la app B2C no están bien.
 
-## 6. Eliminar guia (DELETE)
+| Síntoma | Causa |
+|---------|-------|
+| Dropdown **Access token** grisado | Respuesta OAuth sin `access_token` |
+| Solo **ID token** seleccionable | Postman usa lo único que recibió |
 
-```
-DELETE http://<IP>:8080/s3/<BUCKET>/object?fecha=20250605&transportista=TransportesNorte&nombreGuia=guia-PED-002
-```
+**Pasos:**
 
-Tambien funciona con `key` directa:
+1. **Manage Tokens** → borrar `lector-access-token` (y tokens viejos).
+2. En Authorization verificar **Scope** = `openid offline_access` + URL scope API (`b2c_scope` del environment).
+3. **Get New Access Token** → login **LECTOR** (no reutilizar sesión GESTOR en el navegador).
+4. Tras login, en el popup deben aparecer **dos** pestañas: Access Token e ID Token.
+5. Si solo hay ID Token → en Azure B2C: App registration → **Expose an API** → scope `cdy2204-1` autorizado en el user flow.
 
-```
-DELETE http://<IP>:8080/s3/<BUCKET>/object?key=20250605/TransportesNorte/guia-PED-002.pdf
-```
-
-**Respuesta esperada:** `204 No Content`
-
-**Nota:** elimina solo de **S3** (igual que el profesor). El archivo puede seguir en EFS.
-
-**Verificar:** el objeto ya no aparece en la consola S3.
+**Workaround:** copiar manualmente el Access Token del popup a la variable `access_token_lector` en environment **Semana 6**.
 
 ---
 
-## 7. Demostracion EFS en video — Pauta 1 maximo (apuntes clase)
+## Azure B2C no devuelve access_token (Access token grisado en 0.1 y 0.2)
 
-En EC2, tras generar las 2 guias (carpeta 1):
+**Guía detallada portal Azure:** [docs/GUIA_AZURE.md](docs/GUIA_AZURE.md)
 
-```bash
-df -h
-ls -R /home/ec2-user/efs/
-# Esperado:
-# 20250604/TransportesSur/guia-PED-001.pdf
-# 20250605/TransportesNorte/guia-PED-002.pdf
+Si **Access token** esta deshabilitado en Postman para GESTOR y LECTOR, la causa es **Azure**, no la coleccion.
 
-sudo docker exec -it empresa-transportista-efs bash
-ls -R /app/efs/
-exit
+Con scope solo `openid` (+ `offline_access`), B2C devuelve **solo id_token**. Para obtener **access_token** debes pedir un **scope de API** que exista y este autorizado en el tenant.
+
+### Comprobar en Postman
+
+1. **Get New Access Token** → login.
+2. **Manage Tokens** → abrir el token → revisar si el campo **Access Token** esta vacio.
+3. Si vacio → Azure no emitio access_token.
+
+### Checklist Azure Portal (App `49f4ab51-5e0e-4139-9cf4-15f566581b07`)
+
+1. **App registrations** → tu app → **Expose an API**
+   - Application ID URI configurado (ej. `https://EmpresaTransportistaEFS.onmicrosoft.com/49f4ab51-5e0e-4139-9cf4-15f566581b07`)
+   - Scope **`cdy2204-1`** creado (copiar URL exacta del portal)
+2. **API permissions** → Add permission → **My APIs** → scope `cdy2204-1` → **Grant admin consent**
+3. **User flows** → `B2C_1_cdy2204-1` → **Applications** → la app debe estar seleccionada
+4. **User flows** → **Application claims** → incluir claims en **Access Token** (incl. `extension_UserRole`)
+
+### Scopes a probar en Authorization → Scope (Postman)
+
+Copiar **exactamente** desde Azure. Probar uno por uno (borrar token viejo entre intentos):
+
+| Variable environment | Valor |
+|---------------------|-------|
+| `b2c_scope` (actual) | openid + offline_access + scope API cdy2204-1 |
+| `b2c_scope_default_full` | openid + offline_access + `.default` |
+| `b2c_scope_client_id` | openid + offline_access + client_id |
+
+Tras cada cambio: **Manage Tokens** → borrar → **Get New Access Token**. El popup debe mostrar **Access Token** e **ID Token**.
+
+### Cuando funcione
+
+- Dropdown **Use Token Type** habilita **Access token**
+- **0.0 C** pasa test `NO es ID Token`
+- Token tiene claim `scp` o `aud` con scope API
+
+---
+
+## Orden de ejecucion Postman (video Teams)
+
+1. Seleccionar environment **Semana 6**
+2. **0.1** OAuth → Get New Access Token → login GESTOR → **Use Token Type = Access Token** → **Use Token** → Send (Gateway → 200)
+3. **0.0 C** → validar iss, aud, rol y test **NO es ID Token**
+4. **0.0 B** → API Gateway → 200 (Authorizer OK)
+5. **0.0 A** → EC2 directo → 200 (Spring OK, opcional)
+6. **Carpeta 1** → flujo completo via Gateway
+7. **0.2** OAuth LECTOR → **Carpeta 2** → descarga 200, crear 403
+8. **Carpeta 3** → sin token → 401
+
+---
+
+## Diagnostico Unauthorized
+
+| Respuesta | Origen | Accion |
+|-----------|--------|--------|
+| `{"message":"Unauthorized"}` | API Gateway JWT Authorizer | **Issuer/aud del token ≠ AWS.** Actualizar Authorizer: iss = tenant UUID (ver 0.0 C). Re-import OAS o editar consola. |
+| 401 con body Spring (timestamp, status) | Spring Boot | Token invalido para issuer Spring |
+| 403 Forbidden | Spring Security | Token OK pero rol incorrecto (LECTOR en endpoint GESTOR) |
+
+---
+
+## OAuth 2.0 en Postman
+
+| Variable | Valor |
+|----------|-------|
+| Auth URL | `b2c_auth_url` |
+| Token URL | `b2c_token_url` |
+| Client ID | `b2c_client_id` |
+| Scope | API scope + openid (no solo openid) |
+| Redirect URI | `https://oauth.pstmn.io/v1/callback` |
+
+Grant: **Authorization Code with PKCE** (requests **0.1** y **0.2**).
+
+---
+
+## Roles Azure AD B2C
+
+| Claim | Rol | Acceso |
+|-------|-----|--------|
+| `extension_UserRole=GESTOR_GUIAS` | Gestor | Todos los endpoints |
+| `extension_UserRole=LECTOR_GUIAS` | Lector | Solo `GET /s3/{bucket}/object` |
+
+---
+
+## Referencia endpoints via Gateway
+
+```
+GET/POST  {{api_gateway_url}}/api/pedidos
+GET/PUT/DELETE  {{api_gateway_url}}/api/pedidos/{id}
+POST  {{api_gateway_url}}/api/pedidos/{id}/generar-guia
+GET  {{api_gateway_url}}/s3/{{bucket}}/objects
+GET  {{api_gateway_url}}/s3/{{bucket}}/consulta?fecha=&transportista=
+GET  {{api_gateway_url}}/s3/{{bucket}}/object?fecha=&transportista=&nombreGuia=
+POST/PUT  {{api_gateway_url}}/s3/{{bucket}}/object
+POST  {{api_gateway_url}}/s3/{{bucket}}/move?sourceKey=&destKey=
+DELETE  {{api_gateway_url}}/s3/{{bucket}}/object?fecha=&transportista=&nombreGuia=
 ```
 
-Explicar la cadena (apuntes): micro escribe en `/app/efs` → Docker mapea a `/home/ec2-user/efs` en Linux → Linux escribe en Amazon EFS. Misma organizacion que las keys en S3.
-
 ---
 
-## 8. Pipeline CI/CD en vivo — Pauta 6
+## Checklist pre-demo
 
-1. Hacer un cambio menor (ej. comentario en README)
-2. `git add . && git commit -m "trigger deploy" && git push origin main`
-3. Mostrar GitHub Actions ejecutandose
-4. Verificar que la app responde en EC2 despues del deploy
-
----
-
-## 9. Guion del video — Pauta 7
-
-Orden sugerido:
-
-1. Presentar el caso (empresa transportista, pedidos y guias de despacho)
-2. Mostrar arquitectura: dos capas (negocio + cloud), EC2 + Docker + EFS + S3 + GitHub Actions
-3. **Carpeta 1:** crear pedidos y generar guias (PDF automatico, sin subir archivo)
-4. Mostrar EFS en EC2 (`ls -R`) — dos carpetas fecha/transportista
-5. Mostrar objetos en consola S3 (mismas keys)
-6. **Carpeta 2:** listar bucket completo vs consulta con filtros
-7. Descargar PDF y abrirlo
-8. Modificar guia (PUT) y ver cambio en S3
-9. Eliminar segunda guia y verificar en S3
-10. Push a main y pipeline en vivo
-11. Explicar **por que** funciona cada parte (no solo mostrar pantallas)
-
----
-
-## Pruebas solo en EC2 (sin entorno local)
-
-Todas las pruebas se hacen contra la instancia desplegada:
-
-```
-http://<IP-ELASTICA-EC2>:8080/api/pedidos      ← negocio
-http://<IP-ELASTICA-EC2>:8080/s3/<BUCKET>/     ← cloud
-```
-
-Orden recomendado:
-
-1. Seguir [AWS_SETUP.md](AWS_SETUP.md) (S3, EFS, EC2, IAM, Docker)
-2. Desplegar el contenedor con volumen EFS montado (push a `main` o manual)
-3. Ejecutar **Carpeta 1** de Postman completa
-4. Ejecutar **Carpeta 2** de Postman completa
-5. Verificar EFS en SSH (`ls -R /home/ec2-user/efs`, `docker exec`, `df -h`)
-6. Verificar objetos en la consola AWS S3
-7. Grabar el video con ese flujo en vivo
-
----
-
-## Variables de la coleccion Postman
-
-| Variable | Valor ejemplo | Uso |
-|----------|---------------|-----|
-| `ec2_host` | `52.45.88.121` | IP elastica de EC2 |
-| `bucket` | `tu-bucket-guias` | Nombre del bucket S3 (igual que `AWS_S3_BUCKET`) |
-| `pedido_id_1` | `PED-001` | Se guarda al crear pedido 1 |
-| `pedido_id_2` | `PED-002` | Se guarda al crear pedido 2 |
-| `fecha` | `20250604` | Pedido 1 / consulta cloud |
-| `transportista` | `TransportesSur` | Pedido 1 |
-| `nombreGuia` | `guia-PED-001` | Sin .pdf |
-| `fecha2` | `20250605` | Pedido 2 |
-| `transportista2` | `TransportesNorte` | Pedido 2 |
-| `nombreGuia2` | `guia-PED-002` | Sin .pdf |
-
-El bucket va en la URL como `{bucket}` (igual al profesor). Debe coincidir con `AWS_S3_BUCKET` en EC2.
+- [ ] Environment **Semana 6** activo
+- [ ] **Use Token Type = Access Token** en 0.1 (no ID Token)
+- [ ] Access Token fresco
+- [ ] **0.0 C** iss/aud/rol OK y test ID Token pasa
+- [ ] **0.0 B** Gateway 200
+- [ ] Rutas PUT pedido y POST move en AWS (si aplica)
+- [ ] Spring redeployado con issuer alineado (push a main)

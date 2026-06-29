@@ -32,3 +32,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Secretos locales (no subir a GitHub) ###
+postman/Semana6.postman_environment.json
+claves*.txt
+**/claves_actividad*.txt
+.env
+.env.*

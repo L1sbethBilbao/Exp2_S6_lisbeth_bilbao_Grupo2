@@ -1,0 +1,310 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Semana 6 — Empresa Transportista (merge DEV)",
+    "description": "OpenAPI 3.0 para import Merge en HTTP API c60n9nxi6c. Proxy a Spring Boot EC2 con JWT Authorizer Azure AD B2C (azureidaas). Alineado con Postman Pruebas-Semana6.",
+    "version": "2026-06-28T00:00:00Z"
+  },
+  "servers": [
+    {
+      "url": "https://c60n9nxi6c.execute-api.us-east-1.amazonaws.com/{basePath}",
+      "variables": {
+        "basePath": {
+          "default": "DEV"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/api/pedidos": {
+      "get": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Listar pedidos"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "GET",
+          "uri": "http://52.45.88.121:8080/api/pedidos",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      },
+      "post": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Crear pedido"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "POST",
+          "uri": "http://52.45.88.121:8080/api/pedidos",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      }
+    },
+    "/api/pedidos/{pedido_id}": {
+      "parameters": [
+        {
+          "name": "pedido_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Obtener pedido por id"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "GET",
+          "uri": "http://52.45.88.121:8080/api/pedidos/{pedido_id}",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      },
+      "put": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Actualizar pedido"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "PUT",
+          "uri": "http://52.45.88.121:8080/api/pedidos/{pedido_id}",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      },
+      "delete": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Eliminar pedido"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "DELETE",
+          "uri": "http://52.45.88.121:8080/api/pedidos/{pedido_id}",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      }
+    },
+    "/api/pedidos/{pedido_id}/generar-guia": {
+      "parameters": [
+        {
+          "name": "pedido_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Generar guia de despacho"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "POST",
+          "uri": "http://52.45.88.121:8080/api/pedidos/{pedido_id}/generar-guia",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      }
+    },
+    "/s3/{bucket}/objects": {
+      "parameters": [
+        {
+          "name": "bucket",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Listar objetos del bucket"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "GET",
+          "uri": "http://52.45.88.121:8080/s3/{bucket}/objects",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      }
+    },
+    "/s3/{bucket}/consulta": {
+      "parameters": [
+        {
+          "name": "bucket",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Consultar guias por fecha y transportista"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "GET",
+          "uri": "http://52.45.88.121:8080/s3/{bucket}/consulta",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      }
+    },
+    "/s3/{bucket}/object": {
+      "parameters": [
+        {
+          "name": "bucket",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Descargar guia"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "GET",
+          "uri": "http://52.45.88.121:8080/s3/{bucket}/object",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      },
+      "post": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Subir guia"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "POST",
+          "uri": "http://52.45.88.121:8080/s3/{bucket}/object",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      },
+      "put": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Actualizar guia"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "PUT",
+          "uri": "http://52.45.88.121:8080/s3/{bucket}/object",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      },
+      "delete": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Eliminar guia"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "DELETE",
+          "uri": "http://52.45.88.121:8080/s3/{bucket}/object",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0",
+          "timeoutInMillis": 30000
+        }
+      }
+    },
+    "/s3/{bucket}/move": {
+      "parameters": [
+        {
+          "name": "bucket",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "security": [{ "azureidaas": [] }],
+        "responses": {
+          "default": {
+            "description": "Mover objeto en bucket"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "http_proxy",
+          "httpMethod": "POST",
+          "uri": "http://52.45.88.121:8080/s3/{bucket}/move",
+          "connectionType": "INTERNET",
+          "payloadFormatVersion": "1.0"
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "azureidaas": {
+        "type": "oauth2",
+        "flows": {},
+        "x-amazon-apigateway-authorizer": {
+          "type": "jwt",
+          "identitySource": "$request.header.Authorization",
+          "jwtConfiguration": {
+            "audience": [
+              "49f4ab51-5e0e-4139-9cf4-15f566581b07",
+              "https://EmpresaTransportistaEFS.onmicrosoft.com/49f4ab51-5e0e-4139-9cf4-15f566581b07/cdy2204-1"
+            ],
+            "issuer": "https://empresatransportistaefs.b2clogin.com/empresatransportistaefs.onmicrosoft.com/B2C_1_cdy2204-1/v2.0/"
+          }
+        }
+      }
+    }
+  },
+  "x-amazon-apigateway-importexport-version": "1.0"
+}
